@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto-PWA</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; }
+        .app-container { width: 100%; max-width: 500px; background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); box-sizing: border-box; }
+        h1 { text-align: center; color: var(--primary); font-size: 24px; margin-top: 0; }
+        textarea { width: 100%; height: 120px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; font-size: 16px; box-sizing: border-box; resize: none; margin-bottom: 16px; }
+        .btn-group { display: flex; gap: 12px; margin-bottom: 16px; }
+        button { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .btn-encode { background: var(--primary); color: white; }
+        .btn-decode { background: #64748b; color: white; }
+        button:active { opacity: 0.9; }
+        .result-box { background: #f1f5f9; border-radius: 8px; padding: 12px; min-height: 60px; word-break: break-word; font-family: monospace; font-size: 16px; border: 1px dashed #cbd5e1; }
+        label { font-weight: 600; font-size: 14px; margin-bottom: 6px; display: block; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>Crypto Perso</h1>
+    
+    <label for="inputText">Texte à traiter :</label>
+    <textarea id="inputText" placeholder="Entrez votre texte ici..."></textarea>
+    
+    <div class="btn-group">
+        <button class="btn-encode" onclick="processText(true)">Chiffrer</button>
+        <button class="btn-decode" onclick="processText(false)">Déchiffrer</button>
+    </div>
+    
+    <label>Résultat :</label>
+    <div id="outputText" class="result-box">Le résultat s'affichera ici...</div>
+</div>
+
+<script>
+    // Enregistrement du Service Worker pour le mode hors connexion
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log("SW non enregistré", err));
+    }
+
+    const numberWords = {
+        '0': 'zéro', '1': 'un', '2': 'deux', '3': 'trois', '4': 'quatre',
+        '5': 'cinq', '6': 'six', '7': 'sept', '8': 'huit', '9': 'neuf'
+    };
+
+    function cleanWordOfPunctuation(word) {
+        return word.replace(/[^a-zA-Zà-öø-ÿÀ-ÖØ-ß]/g, '');
+    }
+
+    function shiftChar(char, shift) {
+        const code = char.charCodeAt(0);
+        // Majuscules (A-Z)
+        if (code >= 65 && code <= 90) {
+            return String.fromCharCode(((code - 65 + shift) % 26 + 26) % 26 + 65);
+        }
+        // Minuscules (a-z)
+        if (code >= 97 && code <= 122) {
+            return String.fromCharCode(((code - 97 + shift) % 26 + 26) % 26 + 97);
+        }
+        return char; // Garde les accents/caractères spéciaux intacts si non A-Z
+    }
+
+    function processWord(word, encode) {
+        let cleanWord = cleanWordOfPunctuation(word);
+        let len = cleanWord.length;
+        if (len === 0) return word;
+
+        let isImpair = len % 2 !== 0;
+        // Décalage de base : impair = bas (+), pair = haut (-)
+        // Inversé si on décode
+        let direction = isImpair ? 1 : -1;
+        if (!encode) direction *= -1;
+
+        let cleanIdx = 0;
+        let result = "";
+
+        for (let i = 0; i < word.length; i++) {
+            let char = word[i];
+            if (/[a-zA-Z]/.test(char)) {
+                let currentShift = (len - cleanIdx) * direction;
+                result += shiftChar(char, currentShift);
+                cleanIdx++;
+            } else {
+                result += char; // Ponctuation collée au mot
+            }
+        }
+        return result;
+    }
+
+    function processText(encode) {
+        let input = document.getElementById("inputText").value;
+        
+        if (encode) {
+            // Remplacement des chiffres en toutes lettres avant encodage
+            input = input.replace(/[0-9]/g, m => numberWords[m]);
+        }
+
+        // Découpage par les espaces tout en conservant la structure
+        let tokens = input.split(/(\s+)/);
+        let outputTokens = tokens.map(token => {
+            if (/\s+/.test(token)) return token; // Garde les espaces identiques
+            return processWord(token, encode);
+        });
+
+        document.getElementById("outputText").innerText = outputTokens.join("");
+    }
+</script>
+</body>
+</html>
